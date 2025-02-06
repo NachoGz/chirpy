@@ -21,11 +21,20 @@ type apiConfig struct {
 }
 
 type User struct {
-	ID        uuid.UUID `json:"id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Email     string    `json:"email"`
+	ID        	uuid.UUID `json:"id"`
+	CreatedAt 	time.Time `json:"created_at"`
+	UpdatedAt 	time.Time `json:"updated_at"`
+	Email     	string    `json:"email"`
 }
+
+type Chirp struct {
+	ID        	uuid.UUID `json:"id"`
+	CreatedAt 	time.Time `json:"created_at"`
+	UpdatedAt 	time.Time `json:"updated_at"`
+	Body  	  	string    `json:"body"`
+	UserID	  	uuid.UUID `json:"user_id"`
+}
+
 
 
 func main() {
@@ -60,8 +69,10 @@ func main() {
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	mux.HandleFunc("GET /api/healthz", handlerReadiness)
-    mux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
-    mux.HandleFunc("POST /api/users", apiCfg.handlerUserCreation)
+    mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpCreation)
+    mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsRetrieve)
+    mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsRetrieveByID)
+	mux.HandleFunc("POST /api/users", apiCfg.handlerUserCreation)
 	
 
 	server := &http.Server{
