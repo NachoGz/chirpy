@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"encoding/json"
-	// "log"
 )
 
 func (cfg *apiConfig) handlerUserCreation(w http.ResponseWriter, r *http.Request) {
