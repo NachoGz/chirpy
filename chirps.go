@@ -6,17 +6,16 @@ import (
 	"strings"
 	"github.com/google/uuid"
 	"github.com/NachoGz/chirpy/internal/database"
+	"github.com/NachoGz/chirpy/internal/auth"
+	"log"
 )
 
 func (cfg *apiConfig) handlerChirpCreation(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Body string `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		// UserID uuid.UUID `json:"user_id"`
 	}
 
-	type returnVals struct {
-		CleanedBody string `json:"cleaned_body"`
-	}
 
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
@@ -26,23 +25,47 @@ func (cfg *apiConfig) handlerChirpCreation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	ok := validateChirps(params.Body)
-	if !ok {
+
+	// Extract token from the header
+	bearer_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Missing or invalid authorization token", err)
+		return
+	}
+
+
+	// Validate the JWT and extract user ID
+	userID, err := auth.ValidateJWT(bearer_token, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect token", err)
+		return
+	}
+
+
+	// Log the user ID for debugging
+	log.Printf("User ID from JWT: %s", userID.String())
+	
+
+	// Validate chirp length
+	if !validateChirps(params.Body) {
 		respondWithError(w, http.StatusBadRequest, "Chirp is too long", nil)
 		return
 	}
 
+	
+	// Clean the chirp body
 	badWords := map[string]struct{}{
 		"kerfuffle": {},
 		"sharbert":  {},
 		"fornax":    {},
 	}
 	cleaned := getCleanedBody(params.Body, badWords)
-	params.Body = cleaned
 
+
+	// Create chirp in the database
 	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
-		Body:	params.Body,
-		UserID:	uuid.NullUUID{UUID:	params.UserID, Valid: true}, // Convert uuid.UUID to uuid.NullUUID
+		Body:	cleaned,
+		UserID:	uuid.NullUUID{UUID:	userID, Valid: true}, // Convert uuid.UUID to uuid.NullUUID
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Error creating chirp", err)
@@ -59,6 +82,7 @@ func (cfg *apiConfig) handlerChirpCreation(w http.ResponseWriter, r *http.Reques
 
 	respondWithJSON(w, http.StatusCreated, new_chirp)
 }
+
 
 func getCleanedBody(body string, badWords map[string]struct{}) string {
 	words := strings.Split(body, " ")
