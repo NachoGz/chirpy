@@ -7,7 +7,7 @@ import (
 	"log"
 )
 
-func (cfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Couldn't get the bearer token", err)
@@ -45,7 +45,7 @@ func (cfg *apiConfig) handlerRefreshToken(w http.ResponseWriter, r *http.Request
 }
 
 
-func (cfg *apiConfig) handlerRevokeToken(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleRevokeToken(w http.ResponseWriter, r *http.Request) {
 	token, err := auth.GetBearerToken(r.Header)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Couldn't get the bearer token", err)
