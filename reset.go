@@ -5,8 +5,8 @@ import (
 	"os"
 )
 
-// handler function for /admin/reset endpoint
-func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
+// handle function for /admin/reset endpoint
+func (cfg *apiConfig) handleReset(w http.ResponseWriter, r *http.Request) {
 	platform := os.Getenv("PLATFORM")
 	if platform != "dev" {
 		respondWithError(w, http.StatusForbidden, "This operation is not allowed in non-development environment", nil)

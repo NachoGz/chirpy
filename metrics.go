@@ -5,8 +5,9 @@ import (
 	"net/http"
 )
 
-// handler function for /admin/metrics endpoint
-func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
+
+// handle function for /admin/metrics endpoint
+func (cfg *apiConfig) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(200)
     res := fmt.Sprintf(
@@ -19,6 +20,7 @@ func (cfg *apiConfig) handlerMetrics(w http.ResponseWriter, r *http.Request) {
     w.Write([]byte(res))
 
 }
+
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
