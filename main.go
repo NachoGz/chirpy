@@ -18,14 +18,16 @@ type apiConfig struct {
 	fileserverHits  atomic.Int32
     db         		*database.Queries
 	secret			string
+	PolkaKey		string
 
 }
 
 type User struct {
-	ID        	uuid.UUID `json:"id"`
-	CreatedAt 	time.Time `json:"created_at"`
-	UpdatedAt 	time.Time `json:"updated_at"`
-	Email     	string    `json:"email"`
+	ID        		uuid.UUID `json:"id"`
+	CreatedAt 		time.Time `json:"created_at"`
+	UpdatedAt 		time.Time `json:"updated_at"`
+	Email     		string    `json:"email"`
+	IsChirpyRed		bool	  `json:"is_chirpy_red"`
 }
 
 type Chirp struct {
@@ -56,30 +58,38 @@ func main() {
     
     dbQueries := database.New(dbConn)
     secret := os.Getenv("secret")
+    PolkaKey := os.Getenv("POLKA_KEY")
 
 	apiCfg := apiConfig{
         fileserverHits: atomic.Int32{},
         db: 			dbQueries,
 		secret:			secret,
-    }
+		PolkaKey:		PolkaKey,
+	}
 
 	mux := http.NewServeMux()
 	fsHandler := apiCfg.middlewareMetricsInc(http.StripPrefix("/app", http.FileServer(http.Dir(filepathRoot))))
 	mux.Handle("/app/", fsHandler)
 	
 	// endpoints
-	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
-	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
+	mux.HandleFunc("GET /admin/metrics", apiCfg.handleMetrics)
+	mux.HandleFunc("POST /admin/reset", apiCfg.handleReset)
 
-	mux.HandleFunc("GET /api/healthz", handlerReadiness)
-    mux.HandleFunc("POST /api/chirps", apiCfg.handlerChirpCreation)
-    mux.HandleFunc("GET /api/chirps", apiCfg.handlerChirpsRetrieve)
-    mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerChirpsRetrieveByID)
-	mux.HandleFunc("POST /api/users", apiCfg.handlerUserCreation)
-	mux.HandleFunc("POST /api/login", apiCfg.handlerUserLogin)
-	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefreshToken)
-	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevokeToken)
+	mux.HandleFunc("GET /api/healthz", handleReadiness)
+
+    mux.HandleFunc("POST /api/chirps", apiCfg.handleCreateChirp)
+    mux.HandleFunc("GET /api/chirps", apiCfg.handleGetChirps)
+    mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handleGetChirpByID)
+    mux.HandleFunc("DELETE /api/chirps/{chirpID}", apiCfg.handleDeleteChirp)
 	
+	mux.HandleFunc("POST /api/users", apiCfg.handleCreateUser)
+	mux.HandleFunc("PUT /api/users", apiCfg.handleUpdateUserInfo)
+	mux.HandleFunc("POST /api/login", apiCfg.handleLogin)
+	mux.HandleFunc("POST /api/refresh", apiCfg.handleRefreshToken)
+	mux.HandleFunc("POST /api/revoke", apiCfg.handleRevokeToken)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handleUpgradedToChirpyRed)
+
+
 
 	server := &http.Server{
 		Addr:    ":" + port,
