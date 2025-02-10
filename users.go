@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (cfg *apiConfig) handlerUserCreation(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email string `json:"email"`
@@ -22,11 +22,14 @@ func (cfg *apiConfig) handlerUserCreation(w http.ResponseWriter, r *http.Request
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
+
+
 	hashed_passwd, err := auth.HashPassword(params.Password)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
 		return
 	}
+
 
 	user, err := cfg.db.CreateUser(r.Context(), database.CreateUserParams{
 		Email:		params.Email,
@@ -38,15 +41,16 @@ func (cfg *apiConfig) handlerUserCreation(w http.ResponseWriter, r *http.Request
 	}
 	new_user := User{
 		ID: user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email: user.Email,
+		CreatedAt: 		user.CreatedAt,
+		UpdatedAt: 		user.UpdatedAt,
+		Email: 			user.Email,
+		IsChirpyRed:	user.IsChirpyRed,
 	}
 	respondWithJSON(w, http.StatusCreated, new_user)
 }
 
 
-func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handleLogin(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
 		Password string `json:"password"`
 		Email string `json:"email"`
@@ -71,13 +75,7 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Incorrect email or password", err)
 		return
 	}
-	
-	// Set expiration time
-	// If expires_in_seconds is not specified or greater than 3600 seconds, default to 3600
-	// expirationTime := 3600 // Default to 1 hour
-	// if params.ExpiresInSeconds > 0 && params.ExpiresInSeconds <= 3600 {
-	// 	expirationTime = params.ExpiresInSeconds
-	// }
+
 
 	// Generate JWT with expiration time
 	access_token, err := auth.MakeJWT(user.ID, cfg.secret, time.Duration(3600)*time.Second)
@@ -104,22 +102,125 @@ func (cfg *apiConfig) handlerUserLogin(w http.ResponseWriter, r *http.Request) {
 
 
 	response := struct {
-		ID           uuid.UUID `json:"id"`
-		CreatedAt    time.Time `json:"created_at"`
-		UpdatedAt    time.Time `json:"updated_at"`
-		Email        string    `json:"email"`
-		Token        string    `json:"token"`
-		RefreshToken string    `json:"refresh_token"`
+		ID           	uuid.UUID `json:"id"`
+		CreatedAt    	time.Time `json:"created_at"`
+		UpdatedAt    	time.Time `json:"updated_at"`
+		Email        	string    `json:"email"`
+		IsChirpyRed		bool	  `json:"is_chirpy_red"`
+		Token        	string    `json:"token"`
+		RefreshToken 	string    `json:"refresh_token"`
 	}{
-		ID:           user.ID,
-		CreatedAt:    user.CreatedAt,
-		UpdatedAt:    user.UpdatedAt,
-		Email:        user.Email,
-		Token:        access_token,
-		RefreshToken: refresh_token,
+		ID:           	user.ID,
+		CreatedAt:    	user.CreatedAt,
+		UpdatedAt:    	user.UpdatedAt,
+		Email:        	user.Email,
+		IsChirpyRed:	user.IsChirpyRed,
+		Token:        	access_token,
+		RefreshToken: 	refresh_token,
 	}
 
 	respondWithJSON(w, http.StatusOK, response)
+}
 
-	
+
+func (cfg *apiConfig) handleUpdateUserInfo(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Password string `json:"password"`
+		Email string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+
+	// Extract token from the header
+	bearer_token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Missing or invalid authorization token", err)
+		return
+	}
+
+
+	// Validate the JWT and extract user ID
+	userID, err := auth.ValidateJWT(bearer_token, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect token", err)
+		return
+	}
+
+
+	hashed_passwd, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
+		return
+	}
+
+
+	user, err := cfg.db.ChangeEmailAndPassword(r.Context(), database.ChangeEmailAndPasswordParams{
+		ID:					userID,
+		Email:				params.Email, 
+		HashedPassword:		hashed_passwd, 
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update email or password", err)
+		return
+	}
+
+
+	respondWithJSON(w, http.StatusOK, User{
+		ID:				userID,
+		UpdatedAt:		user.UpdatedAt,
+		CreatedAt:		user.CreatedAt,
+		Email:			user.Email,
+		IsChirpyRed:	user.IsChirpyRed,
+	})
+}
+
+
+func (cfg *apiConfig) handleUpgradedToChirpyRed(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	api_key, err := auth.GetAPIKey(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "ApiKey not found", err)
+		return
+	}
+	if cfg.PolkaKey != api_key {
+		respondWithError(w, http.StatusUnauthorized, "Incorrect ApiKey", err)
+		return
+	}
+
+
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	if params.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+
+	err = cfg.db.UpgradeToChirpyRed(r.Context(), params.Data.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "User not found", err)
+		return
+	}
+
+
+	w.WriteHeader(http.StatusNoContent)
 }
